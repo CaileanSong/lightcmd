@@ -9,13 +9,23 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "lightcmd.helloWorld",
-        "title": "Hello World"
+        "command": "lightcmd.showCommands",
+        "title": "lightcmd: Show Commands"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "lightcmd.showCommands",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+shift+l",
+        "when": "terminalFocus || editorTextFocus"
       }
     ]
   },
