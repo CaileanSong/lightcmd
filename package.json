@@ -18,6 +18,10 @@
       {
         "command": "lightcmd.showCommands",
         "title": "lightcmd: Show Commands"
+      },
+      {
+        "command": "lightcmd.toggleFavorite",
+        "title": "LightCmd: Toggle Favorite"
       }
     ],
     "keybindings": [

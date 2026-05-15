@@ -8,7 +8,13 @@ interface CommandRecord {
 	usageCount: number;
 	firstUsedAt: number;
 	lastUsedAt: number;
+	favorite: boolean;
 }
+interface CommandQuickPickItem extends vscode.QuickPickItem {
+	command: string;
+}
+
+
 // 历史数组
 const commandHistory: CommandRecord[] = []
 function normalizeCommand(command: string): string {
@@ -23,6 +29,62 @@ function loadCommandHistory(context: vscode.ExtensionContext): CommandRecord[] {
 }
 async function saveCommandHistory(context: vscode.ExtensionContext): Promise<void> {
 	await context.workspaceState.update(STORAGE_KEY, commandHistory)
+}
+function sortCommandHistory(): void {
+	commandHistory.sort((a, b) => {
+		if (a.favorite !== b.favorite) {
+			return a.favorite ? -1 : 1;
+		}
+
+		if (a.usageCount !== b.usageCount) {
+			return b.usageCount - a.usageCount;
+		}
+
+		return b.lastUsedAt - a.lastUsedAt;
+	});
+
+	if (commandHistory.length > MAX_HISTORY) {
+		commandHistory.splice(MAX_HISTORY);
+	}
+}
+
+function createCommandQuickPickItems(): Array<CommandQuickPickItem | vscode.QuickPickItem> {
+	const favoriteRecords = commandHistory.filter((record) => record.favorite);
+	const normalRecords = commandHistory.filter((record) => !record.favorite);
+
+	const items: Array<CommandQuickPickItem | vscode.QuickPickItem> = [];
+
+	if (favoriteRecords.length > 0) {
+		items.push({
+			label: 'Favorite',
+			kind: vscode.QuickPickItemKind.Separator
+		});
+
+		items.push(
+			...favoriteRecords.map((record) => ({
+				label: record.command,
+				description: `used ${record.usageCount}`,
+				command: record.command
+			}))
+		);
+	}
+
+	if (normalRecords.length > 0) {
+		items.push({
+			label: 'Normal',
+			kind: vscode.QuickPickItemKind.Separator
+		});
+
+		items.push(
+			...normalRecords.map((record) => ({
+				label: record.command,
+				description: `used ${record.usageCount}`,
+				command: record.command
+			}))
+		);
+	}
+
+	return items;
 }
 
 
@@ -55,21 +117,27 @@ export function activate(context: vscode.ExtensionContext) {
 				command,
 				usageCount: 1,
 				firstUsedAt: now,
-				lastUsedAt: now
+				lastUsedAt: now,
+				favorite: false
 			})
 		}
 		// 排序
-		commandHistory.sort((a, b) => {
-			if (a.usageCount != b.usageCount) {
-				return b.usageCount - a.usageCount;
-			}
+		// commandHistory.sort((a, b) => {
+		// 	if (a.favorite !== b.favorite) {
+		// 		return a.favorite ? -1 : 1
+		// 	}
 
-			return b.lastUsedAt - a.lastUsedAt
-		})
+		// 	if (a.usageCount != b.usageCount) {
+		// 		return b.usageCount - a.usageCount;
+		// 	}
 
-		if (commandHistory.length > MAX_HISTORY) {
-			commandHistory.splice(MAX_HISTORY)
-		}
+		// 	return b.lastUsedAt - a.lastUsedAt
+		// })
+
+		// if (commandHistory.length > MAX_HISTORY) {
+		// 	commandHistory.splice(MAX_HISTORY)
+		// }
+		sortCommandHistory();
 
 		void saveCommandHistory(context)
 
@@ -82,24 +150,52 @@ export function activate(context: vscode.ExtensionContext) {
 		// Display a message box to the user
 		// vscode.window.showInformationMessage('LightCmd command launcher');
 		const selected = await vscode.window.showQuickPick(
-			commandHistory.map((record) => ({
-				label: record.command,
-				description: `used ${record.usageCount}`
-			}))
-			,
+			createCommandQuickPickItems(),
 			{
 				placeHolder: 'search terminal commands'
 			}
 		);
-		if (selected) {
+		if (selected && 'command' in selected) {
 			// vscode.window.showInformationMessage(`Selected: ${selected}`)
 			const terminal = vscode.window.activeTerminal ?? vscode.window.createTerminal('LightCmd');
 			terminal.show()
-			terminal.sendText(selected.label);
+			terminal.sendText(selected.command);
 		}
 	});
 
-	context.subscriptions.push(disposable);
+	const toggleFavorite = vscode.commands.registerCommand('lightcmd.toggleFavorite', async () => {
+		const selected = await vscode.window.showQuickPick(
+			createCommandQuickPickItems(),
+			{
+				placeHolder: 'Select a command to favorite'
+			}
+		);
+
+		if (!selected || !('command' in selected)) {
+			return;
+		}
+
+		const record = commandHistory.find((item) => item.command === selected.command);
+
+		if (!record) {
+			return;
+		}
+
+		record.favorite = !record.favorite;
+
+		sortCommandHistory();
+		void saveCommandHistory(context);
+
+		vscode.window.showInformationMessage(
+			record.favorite
+				? `Favorited: ${record.command}`
+				: `Unfavorited: ${record.command}`
+		);
+	});
+
+
+
+	context.subscriptions.push(disposable, toggleFavorite);
 }
 
 // This method is called when your extension is deactivated
