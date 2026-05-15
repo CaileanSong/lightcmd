@@ -1,71 +1,90 @@
-# lightcmd README
+# LightCmd
 
-This is the README for your extension "lightcmd". After writing up a brief description, we recommend including the following sections.
+LightCmd is a lightweight terminal command history launcher for VS Code.
+
+It passively records terminal commands you actually run, then lets you reopen them from a fast searchable picker.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Capture real terminal commands with VS Code Shell Integration
+- Open command history with a keyboard shortcut
+- Search and run previous commands from Quick Pick
+- Track usage count and recent usage
+- Pin favorite commands
+- Show Favorite and Normal sections in the picker
+- Delete individual commands
+- Clear all workspace command history
+- Export command history to JSON
+- Import and merge command history from JSON
+- Keep history per workspace with VS Code `workspaceState`
 
-For example if there is an image subfolder under your extension project workspace:
+## Usage
 
-\!\[feature X\]\(images/feature-x.png\)
+Run commands normally in the VS Code terminal. LightCmd records completed shell commands automatically.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+Open the picker:
+
+- macOS: `Cmd+Shift+L`
+- Windows/Linux: `Ctrl+Alt+L`
+- Command Palette: `LightCmd: Show Commands`
+
+Select a command to send it to the active terminal. If no terminal exists, LightCmd creates one.
+
+## Commands
+
+- `LightCmd: Show Commands`
+- `LightCmd: Toggle Favorite`
+- `LightCmd: Delete Command`
+- `LightCmd: Clear History`
+- `LightCmd: Export Commands`
+- `LightCmd: Import Commands`
+
+## Settings
+
+This extension contributes the following setting:
+
+```json
+{
+  "lightcmd.maxHistory": 300
+}
+```
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+LightCmd relies on VS Code Terminal Shell Integration to capture completed terminal commands.
 
-## Extension Settings
+If commands are not captured, make sure this VS Code setting is enabled:
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+```json
+{
+  "terminal.integrated.shellIntegration.enabled": true
+}
+```
 
-For example:
+## Import and Export
 
-This extension contributes the following settings:
+Export creates a JSON file with this shape:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```json
+{
+  "version": 1,
+  "exportedAt": 1710000000000,
+  "records": []
+}
+```
+
+Import merges records by command text, combines usage counts, keeps the earliest first-used time, keeps the latest last-used time, and preserves favorite state.
+
+## Privacy
+
+LightCmd stores command history locally in VS Code workspace storage. It does not send command history to any external service.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- Commands are captured only when VS Code Shell Integration reports them.
+- History is stored per workspace in the current MVP.
+- Multi-line or low-confidence shell commands may not always be captured exactly as typed.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+See [CHANGELOG.md](CHANGELOG.md).

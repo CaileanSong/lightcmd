@@ -1,35 +1,75 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+import { TextDecoder, TextEncoder } from 'node:util';
 import * as vscode from 'vscode';
 
-//数组基本值 
 interface CommandRecord {
 	command: string;
 	usageCount: number;
 	firstUsedAt: number;
 	lastUsedAt: number;
 	favorite: boolean;
+	cwd?: string;
 }
+
 interface CommandQuickPickItem extends vscode.QuickPickItem {
 	command: string;
 }
 
+interface LightCmdExportData {
+	version: 1;
+	exportedAt: number;
+	records: CommandRecord[];
+}
 
-// 历史数组
-const commandHistory: CommandRecord[] = []
+const STORAGE_KEY = 'lightcmd.commandHistory';
+const DEFAULT_MAX_HISTORY = 300;
+const commandHistory: CommandRecord[] = [];
+
 function normalizeCommand(command: string): string {
 	return command.trim().replace(/\s+/g, ' ');
 }
 
-const MAX_HISTORY = 300;
+function getMaxHistory(): number {
+	const configured = vscode.workspace
+		.getConfiguration('lightcmd')
+		.get<number>('maxHistory', DEFAULT_MAX_HISTORY);
 
-const STORAGE_KEY = 'lightcmd.commandHistory';
+	return Math.max(1, configured);
+}
+
+function normalizeRecord(record: Partial<CommandRecord>): CommandRecord | undefined {
+	if (typeof record.command !== 'string') {
+		return undefined;
+	}
+
+	const command = normalizeCommand(record.command);
+
+	if (!command) {
+		return undefined;
+	}
+
+	const now = Date.now();
+
+	return {
+		command,
+		usageCount: Math.max(1, record.usageCount || 1),
+		firstUsedAt: record.firstUsedAt || now,
+		lastUsedAt: record.lastUsedAt || now,
+		favorite: Boolean(record.favorite),
+		cwd: typeof record.cwd === 'string' ? record.cwd : undefined,
+	};
+}
+
 function loadCommandHistory(context: vscode.ExtensionContext): CommandRecord[] {
-	return context.workspaceState.get<CommandRecord[]>(STORAGE_KEY, [])
+	return context.workspaceState
+		.get<CommandRecord[]>(STORAGE_KEY, [])
+		.map(normalizeRecord)
+		.filter((record): record is CommandRecord => Boolean(record));
 }
+
 async function saveCommandHistory(context: vscode.ExtensionContext): Promise<void> {
-	await context.workspaceState.update(STORAGE_KEY, commandHistory)
+	await context.workspaceState.update(STORAGE_KEY, commandHistory);
 }
+
 function sortCommandHistory(): void {
 	commandHistory.sort((a, b) => {
 		if (a.favorite !== b.favorite) {
@@ -43,160 +83,315 @@ function sortCommandHistory(): void {
 		return b.lastUsedAt - a.lastUsedAt;
 	});
 
-	if (commandHistory.length > MAX_HISTORY) {
-		commandHistory.splice(MAX_HISTORY);
+	if (commandHistory.length > getMaxHistory()) {
+		commandHistory.splice(getMaxHistory());
 	}
 }
 
 function createCommandQuickPickItems(): Array<CommandQuickPickItem | vscode.QuickPickItem> {
 	const favoriteRecords = commandHistory.filter((record) => record.favorite);
 	const normalRecords = commandHistory.filter((record) => !record.favorite);
-
 	const items: Array<CommandQuickPickItem | vscode.QuickPickItem> = [];
 
 	if (favoriteRecords.length > 0) {
 		items.push({
 			label: 'Favorite',
-			kind: vscode.QuickPickItemKind.Separator
+			kind: vscode.QuickPickItemKind.Separator,
 		});
 
-		items.push(
-			...favoriteRecords.map((record) => ({
-				label: record.command,
-				description: `used ${record.usageCount}`,
-				command: record.command
-			}))
-		);
+		items.push(...favoriteRecords.map(createCommandQuickPickItem));
 	}
 
 	if (normalRecords.length > 0) {
 		items.push({
 			label: 'Normal',
-			kind: vscode.QuickPickItemKind.Separator
+			kind: vscode.QuickPickItemKind.Separator,
 		});
 
-		items.push(
-			...normalRecords.map((record) => ({
-				label: record.command,
-				description: `used ${record.usageCount}`,
-				command: record.command
-			}))
-		);
+		items.push(...normalRecords.map(createCommandQuickPickItem));
 	}
 
 	return items;
 }
 
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
-	commandHistory.push(...loadCommandHistory(context))
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	// console.log('Congratulations, your extension "lightcmd" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	// 监听
-	const terminalExecutionListener = vscode.window.onDidEndTerminalShellExecution((event) => {
-		const commandLine = event.execution.commandLine.value;
-		// vscode.window.showInformationMessage(`Captured:${commandLine}`)
-		const command = normalizeCommand(commandLine)
-		if (!command) {
-			return
-		}
-		const now = Date.now();
-		const existing = commandHistory.find((record) => record.command === command)
-		if (existing) {
-			existing.usageCount += 1;
-			existing.lastUsedAt = now
-		} else {
-			commandHistory.push({
-				command,
-				usageCount: 1,
-				firstUsedAt: now,
-				lastUsedAt: now,
-				favorite: false
-			})
-		}
-		// 排序
-		// commandHistory.sort((a, b) => {
-		// 	if (a.favorite !== b.favorite) {
-		// 		return a.favorite ? -1 : 1
-		// 	}
-
-		// 	if (a.usageCount != b.usageCount) {
-		// 		return b.usageCount - a.usageCount;
-		// 	}
-
-		// 	return b.lastUsedAt - a.lastUsedAt
-		// })
-
-		// if (commandHistory.length > MAX_HISTORY) {
-		// 	commandHistory.splice(MAX_HISTORY)
-		// }
-		sortCommandHistory();
-
-		void saveCommandHistory(context)
-
-		vscode.window.setStatusBarMessage(`LightCmd captured: ${command}`, 2000)
-	})
-	context.subscriptions.push(terminalExecutionListener)
-	// 主命令
-	const disposable = vscode.commands.registerCommand('lightcmd.showCommands', async () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		// vscode.window.showInformationMessage('LightCmd command launcher');
-		const selected = await vscode.window.showQuickPick(
-			createCommandQuickPickItems(),
-			{
-				placeHolder: 'search terminal commands'
-			}
-		);
-		if (selected && 'command' in selected) {
-			// vscode.window.showInformationMessage(`Selected: ${selected}`)
-			const terminal = vscode.window.activeTerminal ?? vscode.window.createTerminal('LightCmd');
-			terminal.show()
-			terminal.sendText(selected.command);
-		}
-	});
-
-	const toggleFavorite = vscode.commands.registerCommand('lightcmd.toggleFavorite', async () => {
-		const selected = await vscode.window.showQuickPick(
-			createCommandQuickPickItems(),
-			{
-				placeHolder: 'Select a command to favorite'
-			}
-		);
-
-		if (!selected || !('command' in selected)) {
-			return;
-		}
-
-		const record = commandHistory.find((item) => item.command === selected.command);
-
-		if (!record) {
-			return;
-		}
-
-		record.favorite = !record.favorite;
-
-		sortCommandHistory();
-		void saveCommandHistory(context);
-
-		vscode.window.showInformationMessage(
-			record.favorite
-				? `Favorited: ${record.command}`
-				: `Unfavorited: ${record.command}`
-		);
-	});
-
-
-
-	context.subscriptions.push(disposable, toggleFavorite);
+function createCommandQuickPickItem(record: CommandRecord): CommandQuickPickItem {
+	return {
+		label: record.command,
+		description: `used ${record.usageCount}`,
+		detail: record.cwd,
+		command: record.command,
+	};
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() { }
+function isCommandQuickPickItem(
+	item: CommandQuickPickItem | vscode.QuickPickItem | undefined
+): item is CommandQuickPickItem {
+	return Boolean(item && 'command' in item);
+}
+
+function recordCommand(commandLine: string, cwd: string | undefined): void {
+	const command = normalizeCommand(commandLine);
+
+	if (!command) {
+		return;
+	}
+
+	const now = Date.now();
+	const existing = commandHistory.find((record) => record.command === command);
+
+	if (existing) {
+		existing.usageCount += 1;
+		existing.lastUsedAt = now;
+		existing.cwd = cwd ?? existing.cwd;
+	} else {
+		commandHistory.push({
+			command,
+			usageCount: 1,
+			firstUsedAt: now,
+			lastUsedAt: now,
+			favorite: false,
+			cwd,
+		});
+	}
+
+	sortCommandHistory();
+}
+
+async function pickCommand(placeHolder: string): Promise<CommandQuickPickItem | undefined> {
+	if (commandHistory.length === 0) {
+		vscode.window.showInformationMessage('LightCmd has no command history yet.');
+		return undefined;
+	}
+
+	const selected = await vscode.window.showQuickPick(createCommandQuickPickItems(), {
+		placeHolder,
+		matchOnDescription: true,
+		matchOnDetail: true,
+	});
+
+	if (!isCommandQuickPickItem(selected)) {
+		return undefined;
+	}
+
+	return selected;
+}
+
+async function showCommands(): Promise<void> {
+	const selected = await pickCommand('Search terminal commands');
+
+	if (!selected) {
+		return;
+	}
+
+	const terminal = vscode.window.activeTerminal ?? vscode.window.createTerminal('LightCmd');
+	terminal.show();
+	terminal.sendText(selected.command);
+}
+
+async function toggleFavorite(context: vscode.ExtensionContext): Promise<void> {
+	const selected = await pickCommand('Select a command to favorite or unfavorite');
+
+	if (!selected) {
+		return;
+	}
+
+	const record = commandHistory.find((item) => item.command === selected.command);
+
+	if (!record) {
+		return;
+	}
+
+	record.favorite = !record.favorite;
+	sortCommandHistory();
+	await saveCommandHistory(context);
+
+	const action = record.favorite ? 'Favorited' : 'Unfavorited';
+	vscode.window.showInformationMessage(`${action}: ${record.command}`);
+}
+
+async function deleteCommand(context: vscode.ExtensionContext): Promise<void> {
+	const selected = await pickCommand('Select a command to delete');
+
+	if (!selected) {
+		return;
+	}
+
+	const confirmation = await vscode.window.showWarningMessage(
+		`Delete "${selected.command}" from LightCmd history?`,
+		{ modal: true },
+		'Delete'
+	);
+
+	if (confirmation !== 'Delete') {
+		return;
+	}
+
+	const index = commandHistory.findIndex((record) => record.command === selected.command);
+
+	if (index >= 0) {
+		commandHistory.splice(index, 1);
+		await saveCommandHistory(context);
+		vscode.window.showInformationMessage(`Deleted: ${selected.command}`);
+	}
+}
+
+async function clearHistory(context: vscode.ExtensionContext): Promise<void> {
+	if (commandHistory.length === 0) {
+		vscode.window.showInformationMessage('LightCmd history is already empty.');
+		return;
+	}
+
+	const confirmation = await vscode.window.showWarningMessage(
+		`Clear all ${commandHistory.length} LightCmd commands?`,
+		{ modal: true },
+		'Clear History'
+	);
+
+	if (confirmation !== 'Clear History') {
+		return;
+	}
+
+	commandHistory.splice(0, commandHistory.length);
+	await saveCommandHistory(context);
+	vscode.window.showInformationMessage('LightCmd history cleared.');
+}
+
+async function exportCommands(): Promise<void> {
+	const uri = await vscode.window.showSaveDialog({
+		defaultUri: vscode.Uri.file('lightcmd-history.json'),
+		filters: {
+			JSON: ['json'],
+		},
+		saveLabel: 'Export',
+		title: 'Export LightCmd History',
+	});
+
+	if (!uri) {
+		return;
+	}
+
+	const exportData: LightCmdExportData = {
+		version: 1,
+		exportedAt: Date.now(),
+		records: commandHistory,
+	};
+
+	const content = JSON.stringify(exportData, null, 2);
+	await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(content));
+	vscode.window.showInformationMessage(`Exported ${commandHistory.length} LightCmd commands.`);
+}
+
+async function importCommands(context: vscode.ExtensionContext): Promise<void> {
+	const uris = await vscode.window.showOpenDialog({
+		canSelectFiles: true,
+		canSelectFolders: false,
+		canSelectMany: false,
+		filters: {
+			JSON: ['json'],
+		},
+		openLabel: 'Import',
+		title: 'Import LightCmd History',
+	});
+
+	if (!uris?.[0]) {
+		return;
+	}
+
+	const raw = await vscode.workspace.fs.readFile(uris[0]);
+	let parsed: Partial<LightCmdExportData>;
+
+	try {
+		parsed = JSON.parse(new TextDecoder().decode(raw)) as Partial<LightCmdExportData>;
+	} catch {
+		vscode.window.showErrorMessage('Invalid LightCmd import file.');
+		return;
+	}
+
+	if (!Array.isArray(parsed.records)) {
+		vscode.window.showErrorMessage('Invalid LightCmd import file.');
+		return;
+	}
+
+	let importedCount = 0;
+
+	for (const importedRecord of parsed.records) {
+		const record = normalizeRecord(importedRecord);
+
+		if (!record) {
+			continue;
+		}
+
+		mergeCommandRecord(record);
+		importedCount += 1;
+	}
+
+	sortCommandHistory();
+	await saveCommandHistory(context);
+	vscode.window.showInformationMessage(`Imported ${importedCount} LightCmd commands.`);
+}
+
+function mergeCommandRecord(importedRecord: CommandRecord): void {
+	const existing = commandHistory.find((record) => record.command === importedRecord.command);
+
+	if (!existing) {
+		commandHistory.push(importedRecord);
+		return;
+	}
+
+	existing.usageCount += importedRecord.usageCount;
+	existing.firstUsedAt = Math.min(existing.firstUsedAt, importedRecord.firstUsedAt);
+	existing.lastUsedAt = Math.max(existing.lastUsedAt, importedRecord.lastUsedAt);
+	existing.favorite = existing.favorite || importedRecord.favorite;
+	existing.cwd = importedRecord.cwd ?? existing.cwd;
+}
+
+export function activate(context: vscode.ExtensionContext): void {
+	commandHistory.splice(0, commandHistory.length, ...loadCommandHistory(context));
+	sortCommandHistory();
+
+	const terminalExecutionListener = vscode.window.onDidEndTerminalShellExecution((event) => {
+		recordCommand(event.execution.commandLine.value, event.execution.cwd?.fsPath);
+		void saveCommandHistory(context);
+		vscode.window.setStatusBarMessage(
+			`LightCmd captured: ${event.execution.commandLine.value}`,
+			2000
+		);
+	});
+
+	const showCommandsDisposable = vscode.commands.registerCommand(
+		'lightcmd.showCommands',
+		showCommands
+	);
+	const toggleFavoriteDisposable = vscode.commands.registerCommand(
+		'lightcmd.toggleFavorite',
+		() => toggleFavorite(context)
+	);
+	const deleteCommandDisposable = vscode.commands.registerCommand(
+		'lightcmd.deleteCommand',
+		() => deleteCommand(context)
+	);
+	const clearHistoryDisposable = vscode.commands.registerCommand(
+		'lightcmd.clearHistory',
+		() => clearHistory(context)
+	);
+	const exportCommandsDisposable = vscode.commands.registerCommand(
+		'lightcmd.exportCommands',
+		exportCommands
+	);
+	const importCommandsDisposable = vscode.commands.registerCommand(
+		'lightcmd.importCommands',
+		() => importCommands(context)
+	);
+
+	context.subscriptions.push(
+		terminalExecutionListener,
+		showCommandsDisposable,
+		toggleFavoriteDisposable,
+		deleteCommandDisposable,
+		clearHistoryDisposable,
+		exportCommandsDisposable,
+		importCommandsDisposable
+	);
+}
+
+export function deactivate(): void {}

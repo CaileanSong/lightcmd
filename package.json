@@ -1,13 +1,30 @@
 {
   "name": "lightcmd",
   "displayName": "LightCmd",
-  "description": "",
+  "publisher": "caileansong",
+  "description": "A lightweight terminal command history launcher for VS Code.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.117.0"
   },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CaileanSong/lightcmd.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CaileanSong/lightcmd/issues"
+  },
+  "homepage": "https://github.com/CaileanSong/lightcmd#readme",
   "categories": [
     "Other"
+  ],
+  "keywords": [
+    "terminal",
+    "commands",
+    "history",
+    "launcher",
+    "quickpick"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -17,11 +34,27 @@
     "commands": [
       {
         "command": "lightcmd.showCommands",
-        "title": "lightcmd: Show Commands"
+        "title": "LightCmd: Show Commands"
       },
       {
         "command": "lightcmd.toggleFavorite",
         "title": "LightCmd: Toggle Favorite"
+      },
+      {
+        "command": "lightcmd.deleteCommand",
+        "title": "LightCmd: Delete Command"
+      },
+      {
+        "command": "lightcmd.clearHistory",
+        "title": "LightCmd: Clear History"
+      },
+      {
+        "command": "lightcmd.exportCommands",
+        "title": "LightCmd: Export Commands"
+      },
+      {
+        "command": "lightcmd.importCommands",
+        "title": "LightCmd: Import Commands"
       }
     ],
     "keybindings": [
@@ -31,24 +64,37 @@
         "mac": "cmd+shift+l",
         "when": "terminalFocus || editorTextFocus"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "LightCmd",
+      "properties": {
+        "lightcmd.maxHistory": {
+          "type": "number",
+          "default": 300,
+          "minimum": 1,
+          "description": "Maximum number of terminal commands to keep in workspace history."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "package": "vsce package",
     "pretest": "pnpm run compile && pnpm run lint",
     "lint": "eslint src",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.118.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
+    "@types/vscode": "^1.117.0",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.9.1",
     "eslint": "^9.39.3",
     "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "typescript-eslint": "^8.56.1"
   }
 }
