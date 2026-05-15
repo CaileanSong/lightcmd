@@ -22,6 +22,7 @@ interface LightCmdExportData {
 
 const STORAGE_KEY = 'lightcmd.commandHistory';
 const DEFAULT_MAX_HISTORY = 300;
+const DEFAULT_MAX_COMMAND_LENGTH = 1000;
 const commandHistory: CommandRecord[] = [];
 
 function normalizeCommand(command: string): string {
@@ -34,6 +35,32 @@ function getMaxHistory(): number {
 		.get<number>('maxHistory', DEFAULT_MAX_HISTORY);
 
 	return Math.max(1, configured);
+}
+
+function getMaxCommandLength(): number | undefined {
+	const configured = vscode.workspace
+		.getConfiguration('lightcmd')
+		.get<number>('maxCommandLength', DEFAULT_MAX_COMMAND_LENGTH);
+
+	return configured > 0 ? configured : undefined;
+}
+
+function shouldRecordCommand(command: string): boolean {
+	if (!command) {
+		return false;
+	}
+
+	if (command.startsWith('LightCmd:')) {
+		return false;
+	}
+
+	const maxCommandLength = getMaxCommandLength();
+
+	if (maxCommandLength && command.length > maxCommandLength) {
+		return false;
+	}
+
+	return true;
 }
 
 function normalizeRecord(record: Partial<CommandRecord>): CommandRecord | undefined {
@@ -129,11 +156,11 @@ function isCommandQuickPickItem(
 	return Boolean(item && 'command' in item);
 }
 
-function recordCommand(commandLine: string, cwd: string | undefined): void {
+function recordCommand(commandLine: string, cwd: string | undefined): boolean {
 	const command = normalizeCommand(commandLine);
 
-	if (!command) {
-		return;
+	if (!shouldRecordCommand(command)) {
+		return false;
 	}
 
 	const now = Date.now();
@@ -155,6 +182,7 @@ function recordCommand(commandLine: string, cwd: string | undefined): void {
 	}
 
 	sortCommandHistory();
+	return true;
 }
 
 async function pickCommand(placeHolder: string): Promise<CommandQuickPickItem | undefined> {
@@ -350,7 +378,12 @@ export function activate(context: vscode.ExtensionContext): void {
 	sortCommandHistory();
 
 	const terminalExecutionListener = vscode.window.onDidEndTerminalShellExecution((event) => {
-		recordCommand(event.execution.commandLine.value, event.execution.cwd?.fsPath);
+		const recorded = recordCommand(event.execution.commandLine.value, event.execution.cwd?.fsPath);
+
+		if (!recorded) {
+			return;
+		}
+
 		void saveCommandHistory(context);
 		vscode.window.setStatusBarMessage(
 			`LightCmd captured: ${event.execution.commandLine.value}`,

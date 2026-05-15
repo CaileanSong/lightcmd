@@ -73,6 +73,12 @@
           "default": 300,
           "minimum": 1,
           "description": "Maximum number of terminal commands to keep in workspace history."
+        },
+        "lightcmd.maxCommandLength": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "description": "Maximum command length to record. Set to 0 to disable the length limit."
         }
       }
     }

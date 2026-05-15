@@ -45,9 +45,12 @@ This extension contributes the following setting:
 
 ```json
 {
-  "lightcmd.maxHistory": 300
+  "lightcmd.maxHistory": 300,
+  "lightcmd.maxCommandLength": 1000
 }
 ```
+
+Set `lightcmd.maxCommandLength` to `0` to disable the length limit.
 
 ## Requirements
 
